@@ -1,0 +1,17 @@
+[package]
+name = "i3-alternating-layouts-rs"
+version = "0.1.0"
+edition = "2021"
+# default-target = "x86_64-unknown-linux-gnu"
+# cargo-features = ["per-package-target"]
+
+[profile.release]
+strip = true
+opt-level = "z"  # Optimize for size
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[dependencies]
+i3ipc = "~0.10"
+
