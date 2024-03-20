@@ -1,0 +1,94 @@
+name: release
+
+# Only do the release on x.y.z tags.
+on:
+  push:
+    tags:
+    - "v[0-9]+.[0-9]+.[0-9]+"
+
+# We need this to be able to create releases.
+permissions:
+  contents: write
+
+jobs:
+  # The create-release job runs purely to initialize the GitHub release itself,
+  # and names the release after the `x.y.z` tag that was pushed. It's separate
+  # from building the release so that we only create the release once.
+  create-release:
+    name: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the release version from the tag
+        if: env.VERSION == ''
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION##v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Show the version
+        run: |
+          echo "version is: $VERSION"
+      - name: Check that tag version and Cargo.toml version are the same
+        shell: bash
+        run: |
+          echo "version is: $VERSION"
+          if ! grep -q "version = \"$VERSION\"" Cargo.toml; then
+            echo "version does not match Cargo.toml" >&2
+            exit 1
+          fi
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create v$VERSION --draft --verify-tag --title v$VERSION
+    outputs:
+      version: ${{ env.VERSION }}
+
+  build-release:
+    name: build-release
+    needs: ['create-release']
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: linux-gnu
+            target: x86_64-unknown-linux-gnu
+          - build: linux-musl
+            target: x86_64-unknown-linux-musl
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+        targets: ${{ matrix.target }}
+        components: rust-src
+
+    - name: Build
+      run: |
+        cargo build --release --target=${{ matrix.target }} --out-dir=target/release
+        bin="target/release/i3-alternating-layouts-rs-${{ matrix.build }}"
+        cp "target/release/i3-alternating-layouts-rs" $bin
+        echo "BIN=$bin" >> $GITHUB_ENV
+    
+    - name: Build aur
+      if: matrix.build == 'linux-gnu'
+      run: |
+        version="${{ needs.create-release.outputs.version }}"
+        cargo install cargo-aur
+        cargo aur
+        echo "PKGBUILD=target/cargo-aur/PKGBUILD" >> $GITHUB_ENV
+        echo "AUR=target/cargo-aur/i3-alternating-layouts-rs-${version}-x86_64.tar.gz" >> $GITHUB_ENV
+
+    - name: Upload release archive
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        version="${{ needs.create-release.outputs.version }}"
+        gh release upload "v$version" ${{ env.BIN }} ${{ env.AUR }} ${{ env.PKGBUILD }}
+    

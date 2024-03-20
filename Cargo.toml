@@ -2,8 +2,11 @@
 name = "i3-alternating-layouts-rs"
 version = "0.1.0"
 edition = "2021"
-# default-target = "x86_64-unknown-linux-gnu"
-# cargo-features = ["per-package-target"]
+authors = ["Vitaliy Pavlikov <warhotpoint@gmail.com>"]
+description = "Alternating split directions for the i3-wm"
+homepage = "https://github.com/crossdot/i3-alternative-layouts-rs"
+repository = "https://github.com/crossdot/i3-alternative-layouts-rs"
+license = "Unlicense OR MIT"
 
 [profile.release]
 strip = true
